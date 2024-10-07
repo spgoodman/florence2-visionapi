@@ -81,13 +81,13 @@ This script processes all images in a specified folder using the Vision API serv
 Usage:
 
 ```
-./vision-caption-folder-images.sh <folder_path> <prompt>
+./vision-caption-folder-images.sh <prompt> <extension> <folder_path>
 ```
 
 Example:
 
 ```
-./vision-caption-folder-images.sh ./images CAPTION
+./vision-caption-folder-images.sh CAPTION txt ./images
 ```
 
 ### Windows
@@ -115,13 +115,13 @@ This PowerShell script processes all images in a specified folder using the Visi
 Usage:
 
 ```
-.\vision-caption-folder-images.ps1 <folder_path> <prompt>
+.\vision-caption-folder-images.ps1 <prompt> <image_file_path>
 ```
 
 Example:
 
 ```
-.\vision-caption-folder-images.ps1 .\images CAPTION
+.\vision-caption-folder-images.ps1 CAPTION txt .\images
 ```
 
 These scripts will process all images in the specified folder using the given prompt and save the results in a text file named `captions.txt` in the same folder.
