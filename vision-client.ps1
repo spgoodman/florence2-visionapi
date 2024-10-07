@@ -8,7 +8,7 @@
 # License: MIT
 
 # Change the $baseUrl to match the --host and --port set when launching vision-server.sh / vision-server.py
-$baseUrl = "http://10.152.0.5:54880"
+$baseUrl = "http://127.0.0.1:54880"
 $timeout = 10
 
 if ($args.Count -ne 2) {
