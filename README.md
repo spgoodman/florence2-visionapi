@@ -57,7 +57,7 @@ To run the Florence2 Vision API server as a system service, you can create a sys
    [Service]
    ExecStart=/path/to/florence2-visionapi/vision-server.sh
    WorkingDirectory=/path/to/florence2-visionapi
-   User=<your-username>
+   User=<username>
    Restart=always
 
    [Install]
@@ -89,12 +89,12 @@ Example:
 ./vision-client.sh CAPTION cat.jpg
 ```
 
-Available prompts:
-- `<GENERATE_TAGS>`
-- `<MORE_DETAILED_CAPTION>`
-- `<CAPTION>`
-- `<DETAILED_CAPTION>`
-- `<MIXED_CAPTION>`
+Available prompts :
+- `GENERATE_TAGS`
+- `MORE_DETAILED_CAPTION`
+- `CAPTION`
+- `DETAILED_CAPTION`
+- `MIXED_CAPTION`
 
 See the README on Huggingface at [MiaoshouAI/Florence-2-base-PromptGen-v1.5](https://huggingface.co/MiaoshouAI/Florence-2-base-PromptGen-v1.5) for full details of each prompt and expected output.
 
