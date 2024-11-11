@@ -1,23 +1,25 @@
-# Florence2 Vision API Server
+# Florence2 PromptGen 2.0 compatible on-demand API server with command line clients
 
-This project implements a Vision API server using **Florence2** (and variants) with fast inference and automatic model unloading when not in use.
+This project implements a Vision API server for captioning images using **Florence2** (and variants) with fast inference and automatic model unloading when not in use.
 
 ## Purpose
 
-The Vision API server provides an efficient way to process images using the Florence-2 model. It offers various image analysis capabilities through different prompts, making it versatile for a range of computer vision tasks.
+This makes it easy to keep the Florence-2 model finetune PromptGen 2.0 running in the background using a single instance that can queue and respond to simple requestsm and unload when not in use. My main purpose for it was to use with an OpenAI vision wrapper to vision-enable some of my local LLMs. I also use it with ComfyUI with a custom node so that I can keep the model on a different GPU or even different machine. Day to day though, it's mainly useful for captioning images for training or when updating EXIF data.
+
+![A screenshot of a computer screen with a dark background and text.](example.png)
+
 
 ## Model
 
-The server uses the Florence-2 model, by default the fine-tune of Florence-2-base, **Florence-2-base-PromptGen-v1.5**, which is fine-tuned for image captioning. Read more about this model here: [MiaoshouA/Florence-2-base-PromptGen-v1.5](https://huggingface.co/MiaoshouAI/Florence-2-base-PromptGen-v1.5)
-
-Note: The version specified in the model is [createveai/Florence-2-base-PromptGen-v1.5](https://huggingface.co/createveai/Florence-2-base-PromptGen-v1.5) which is the same model weights with corrected config.json and other code fixes.
+The server uses the Florence-2 model, by default the fine-tune of Florence-2-base, **Florence-2-large-PromptGen v2.0**, which is a 0.77B fine-tuned for image captioning, and can generate detailed descriptions, analyse images, create tags and more. Read more about this model here: [MiaoshouAI/Florence-2-large-PromptGen-v2.0](https://huggingface.co/MiaoshouAI/Florence-2-base-PromptGen-v2.0). If you are captioning images for training image generation models like Flux.1D, then either this model or [MiaoshouAI/Florence-2-base-PromptGen-v2.0](https://huggingface.co/MiaoshouAI/Florence-2-base-PromptGen-v2.0) (a 0.23B model)
 
 ## Server Features
 
-1. **FastAPI Implementation**: The server is built using FastAPI, providing a fast and modern framework for API development.
-2. **Asynchronous Processing**: Requests are processed asynchronously, allowing for efficient handling of multiple requests.
-3. **Auto Model Unloading**: The model is automatically unloaded after a period of inactivity (default: 300 seconds), freeing up system resources when not in use.
-4. **Request Queueing**: Incoming requests are queued and processed in order.
+**Asynchronous Processing**: Requests are processed asynchronously, allowing for efficient handling of multiple requests.
+**Auto Model Unloading**: The model is automatically unloaded after a period of inactivity (default: 300 seconds), freeing up system resources when not in use.
+**Request Queueing**: Incoming requests are queued and processed in order.
+
+It is well suited to use across multiple machines, and as it is stateless, HAProxy (or similar) can be used to distribute requests for fast tagging.
 
 ## Installation
 
@@ -32,6 +34,8 @@ Note: The version specified in the model is [createveai/Florence-2-base-PromptGe
    - For Linux: The `vision-server.sh` script will automatically set up a virtual environment and install the required packages when run for the first time.
    - For Windows: The `vision-server.bat` script will set up a virtual environment and install the required packages when run for the first time.
 
+3. Initiate download of the model by attempting to tag an image.
+
 ## Starting the Server
 
 ### Linux
@@ -41,6 +45,7 @@ To start the server on Linux, use the `vision-server.sh` script:
 ```
 ./vision-server.sh [--host HOST] [--port PORT]
 ```
+You can, if you prefer, run it in a container, or run as a service (e.g. using systemctl)
 
 ### Windows
 
@@ -50,89 +55,57 @@ To start the server on Windows, use the `vision-server.bat` script:
 vision-server.bat [--host HOST] [--port PORT]
 ```
 
-By default, the server will run on `localhost:54880`. You can specify a different host and port using the optional arguments.
+By default, the server will run on `localhost:54880`. You can specify a different host and port using the optional arguments, but you will need to update the command line scripts.
+
+## Examples using Invoke-RestMethod
+
+Requests to the server are straightforward. You can use curl, or on Windows, Invoke-RestMethod to call the model, prompts and image tagging functions. 
+
+Get configured model
+`Invoke-RestMethod -Uri "http://localhost:54880/model"`
+
+Get available prompts
+`Invoke-RestMethod -Uri "http://localhost:54880/prompts"`
+
+Caption an image
+`Invoke-RestMethod -Uri "http://localhost:54880/process_image" -Method Post -Headers @{"Content-Type" = "application/json"} -Body "{""image"": ""$([Convert]::ToBase64String([System.IO.File]::ReadAllBytes("C:\Users\steve\OneDrive\Pictures\Avatar\SteveGoodman_ProfileLarge.png")))"",""prompt"": ""<MIXED_CAPTION_PLUS>""}"`
 
 ## Sample Command Line Clients
 
 Both should have identical operations. Update the base_url variable in vision-client.sh/ps1 if you change the host & port the server listens on.
 
-### Linux
+You don't need the command line clients to use this, but they can be helpful if you just want to tag folders of images.
 
-#### vision-client.sh
 
-This script allows you to send image processing requests to the server from the command line.
+### vision-client.sh and vision-client.ps1
 
-Usage:
+Both the Bash script (requires curl) for Linux and the PowerShell script are designed to work in the same way.
 
-```
-./vision-client.sh <prompt> <image_file_path>
-```
+These scripts can be moved as they don't rely on any other files to function, they are simply wrappers for the web requests shown above.
 
-Example:
+Caption image: `vision-client.sh/vision-client.ps1 <prompt> <image_file_path>`
+Example: `vision-client.sh/vision-client.ps1 CAPTION cat.jpg`
+Show available prompts: `vision-client.sh/vision-client.ps1 prompts`
+Show model name: `vision-client.sh/vision-client.ps1 model`
 
-```
-./vision-client.sh CAPTION cat.jpg
-```
+#### vision-caption-folder-images.sh and vision-caption-folder-images.ps1
 
-#### vision-caption-folder-images.sh
+As above, these are intended to work in a similar way on Linux or Windows. 
 
-This script processes all images in a specified folder using the Vision API server.
+The purpose of the scripts is to recursively caption all images in a folder and save captions to files with the specified extension.tag files in a folder, in preparation for training, or for use with EXIF tagging (for example)
 
-Usage:
+Usage: `vision-caption-folder-images.sh/vision-caption-folder-images.ps1 <prompt> <caption_extension> <folder_path>`
+Example: `vision-caption-folder-images.ps1/vision-caption-folder-images.ps1 DETAILED_CAPTION txt C:\path\to\folder`
 
-```
-./vision-caption-folder-images.sh <prompt> <extension> <folder_path>
-```
-
-Example:
-
-```
-./vision-caption-folder-images.sh CAPTION txt ./images
-```
-
-### Windows
-
-#### vision-client.ps1
-
-This PowerShell script allows you to send image processing requests to the server from the command line on Windows.
-
-Usage:
-
-```
-.\vision-client.ps1 <prompt> <image_file_path>
-```
-
-Example:
-
-```
-.\vision-client.ps1 CAPTION cat.jpg
-```
-
-#### vision-caption-folder-images.ps1
-
-This PowerShell script processes all images in a specified folder using the Vision API server on Windows.
-
-Usage:
-
-```
-.\vision-caption-folder-images.ps1 <prompt> <image_file_path>
-```
-
-Example:
-
-```
-.\vision-caption-folder-images.ps1 CAPTION txt .\images
-```
-
-These scripts will process all images in the specified folder using the given prompt and save the results in a text file named `captions.txt` in the same folder.
-
-## Available Prompts for MiaoshouAI/Florence-2-base-PromptGen-v1.5
+## Available Prompts for MiaoshouAI/Florence-2-base-PromptGen-v2.0 and MiaoshouAI/Florence-2-large-PromptGen-v2.0
 
 - `GENERATE_TAGS`
-- `MORE_DETAILED_CAPTION`
 - `CAPTION`
 - `DETAILED_CAPTION`
+- `MORE_DETAILED_CAPTION`
+- `ANALYZE`
 - `MIXED_CAPTION`
+- `MIXED_CAPTION_PLUS`
 
 See the README on Huggingface at [MiaoshouAI/Florence-2-base-PromptGen-v1.5](https://huggingface.co/MiaoshouAI/Florence-2-base-PromptGen-v1.5) for full details of each prompt and expected output.
 

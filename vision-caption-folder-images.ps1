@@ -1,8 +1,8 @@
 # vision-caption-folder-images.ps1
 #
-# Usage: .\vision-caption-folder-images.ps1 <prompt> <caption_extension> <folder_path>
+# Usage: vision-caption-folder-images.ps1 <prompt> <caption_extension> <folder_path>
 # Recursively caption all images in a folder and save captions to files with the specified extension.
-# Example: .\vision-caption-folder-images.ps1 DETAILED_CAPTION txt C:\path\to\folder
+# Example: vision-caption-folder-images.ps1 DETAILED_CAPTION txt C:\path\to\folder
 #
 # Author: Steve Goodman (spgoodman)
 # Date: 2024-10-07

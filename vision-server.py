@@ -34,13 +34,20 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn")
 
 unload_after_seconds = 300
-florence2_model = "createveai/Florence-2-base-PromptGen-v1.5"
+
+# Recommended models:
+# MiaoshouAI/Florence-2-large-PromptGen-v2.0
+# MiaoshouAI/Florence-2-base-PromptGen-v2.0
+florence2_model = "MiaoshouAI/Florence-2-large-PromptGen-v2.0"
+# List of prompts that can be used with the MiaoshouAI/Florence-2-large-PromptGen-v2.0 and MiaoshouAI/Florence-2-base-PromptGen-v2.0 model. You can add additional prompts from the standard Florence-2 models
 florence2_prompts = [
     "<GENERATE_TAGS>",
-    "<MORE_DETAILED_CAPTION>",
     "<CAPTION>",
     "<DETAILED_CAPTION>",
+    "<MORE_DETAILED_CAPTION>",
+    "<ANALYZE>",
     "<MIXED_CAPTION>",
+    "<MIXED_CAPTION_PLUS>"
 ]
 
 class ImageRequest(BaseModel):
@@ -101,7 +108,7 @@ async def process_single_request(request: ImageRequest):
 
     try:
         image_data = base64.b64decode(request.image)
-        image = Image.open(io.BytesIO(image_data))
+        image = Image.open(io.BytesIO(image_data)).convert("RGB")
         logger.info(f"Image decoded successfully. Size: {image.size}")
     except Exception as e:
         logger.error(f"Error decoding image: {str(e)}")
@@ -143,6 +150,10 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/prompts", response_model=List[str])
 async def prompts():
     return florence2_prompts
+
+@app.get("/model", response_model=str)
+async def model():
+    return florence2_model
 
 @app.post("/process_image", response_model=ImageResponse)
 async def process_image(request: ImageRequest, background_tasks: BackgroundTasks):
