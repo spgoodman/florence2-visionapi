@@ -19,6 +19,8 @@ The server uses the Florence-2 model, by default the fine-tune of Florence-2-bas
 **Auto Model Unloading**: The model is automatically unloaded after a period of inactivity (default: 300 seconds), freeing up system resources when not in use.
 **Request Queueing**: Incoming requests are queued and processed in order.
 
+The vision-server.py can be ran on Windows or Linux as a service. On Windows, try NSSM. On Debian-like Linux distributions (e.g. Ubuntu) create a Unit file (e.g. systemctl edit vision-server --force --full). On both, use the full path of the python executable in the .venv folder followed by the path to vision-server.py.
+
 It is well suited to use across multiple machines, and as it is stateless, HAProxy (or similar) can be used to distribute requests for fast tagging.
 
 ## Installation
@@ -45,7 +47,6 @@ To start the server on Linux, use the `vision-server.sh` script:
 ```
 ./vision-server.sh [--host HOST] [--port PORT]
 ```
-You can, if you prefer, run it in a container, or run as a service (e.g. using systemctl)
 
 ### Windows
 
