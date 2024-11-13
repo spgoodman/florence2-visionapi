@@ -7,7 +7,7 @@
 # Show model name: vision-client.sh model
 #
 # Author: Steve Goodman (spgoodman)
-# Date: 2024-11-11
+# Date: 2024-11-13
 # License: MIT
 
 # Change the BASE_URL to match the --host and --port set when launching vision-server.sh / vision-server.py
@@ -55,7 +55,25 @@ if [ ! -f "$image_file" ]; then
     exit 1
 fi
 
-base64_image=$(base64 -w 0 "$image_file")
+# Attempt to resize and convert the image to JPEG if the Python Pillow library is available
+if [[ -d "$(dirname "0")/.venv" ]]; then
+    base64_image=$(python3 - <<EOF
+import base64
+from PIL import Image
+
+image = Image.open("$image_file")
+image = image.resize((256, 256))
+image = image.convert("RGB")
+buffer = io.BytesIO()
+image.save(buffer, format="JPEG")
+base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+print(base64_image)
+EOF
+)
+else
+    base64_image=$(base64 -w 0 "$image_file")
+fi
+
 
 temp_file=$(mktemp)
 cat > "$temp_file" <<EOF

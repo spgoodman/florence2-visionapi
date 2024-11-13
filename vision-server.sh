@@ -7,7 +7,7 @@
 # Example (with default values): vision-server.sh
 #
 # Author: Steve Goodman (spgoodman)
-# Date: 2024-11-11
+# Date: 2024-11-13
 # License: MIT
 #
 # This script is used to start the vision-server.py script with optional host and port arguments.
@@ -22,10 +22,8 @@ if [[ ! -d ".venv" ]]; then
 	python -m venv .venv && \
 	echo "Activating virtual environment..." && \
 	source .venv/bin/activate && \
-	echo "Installing Pytorch into the virtual environment using pip..." && \
-	pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124 && \
 	echo "Install additional packages from requirements.txt using pip..." && \
-	pip install -r requirements.txt || exit 1
+	pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cu124 || exit 1
 else
 	source .venv/bin/activate
 fi

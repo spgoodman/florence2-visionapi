@@ -5,7 +5,7 @@
 # Example: vision-caption-folder-images.ps1 DETAILED_CAPTION txt C:\path\to\folder
 #
 # Author: Steve Goodman (spgoodman)
-# Date: 2024-10-07
+# Date: 2024-10-13
 # License: MIT
 
 param(
@@ -16,8 +16,8 @@ param(
 
 # Display usage if parameters are missing
 if (-not $prompt -or -not $caption_extension -or -not $folder_path) {
-    Write-Host "Usage: $($MyInvocation.MyCommand.Name) <prompt> <caption_extension> <folder_path>"
-    Write-Host "Example: $($MyInvocation.MyCommand.Name) DETAILED_CAPTION txt C:\path\to\folder"
+    "Usage: $($MyInvocation.MyCommand.Name) <prompt> <caption_extension> <folder_path>"
+    "Example: $($MyInvocation.MyCommand.Name) DETAILED_CAPTION txt C:\path\to\folder"
     exit 1
 }
 
@@ -34,16 +34,33 @@ $VISION_CLIENT = Join-Path $PSScriptRoot "vision-client.ps1"
 Get-ChildItem -Path $folder_path -Recurse -File | Where-Object {
     $_.Extension -match '\.(jpg|jpeg|png|gif|bmp|tiff|webp)$'
 } | ForEach-Object {
+    # Capture start time in milliseconds
     $image_file = $_.FullName
-    Write-Host "Processing image: $image_file"
+    "Processing image: $image_file"
     $caption_file = [System.IO.Path]::ChangeExtension($image_file, $caption_extension)
-    
+    if (Test-Path -Path $caption_file) {
+        "Caption file already exists, skipping: $caption_file"
+        return
+    }
     try {
+        # Accurately record how long it takes to call the vision-client.ps1 script
+        $start = Get-Date
         $caption = & $VISION_CLIENT $prompt $image_file
+        # get last error
+        if ($LASTEXITCODE -ne 0) {
+            # Exit
+            exit $LASTEXITCODE
+    }
+        $end = Get-Date
+        $elapsed = ($end - $start).TotalSeconds
+        # Show elapsed time as X.XX seconds
+        $elapsed = "{0:N2}" -f $elapsed
         $caption | Out-File -FilePath $caption_file -Encoding utf8
-        Write-Host "Caption saved to: $caption_file"
+        # Capture end time in milliseconds
+        "Caption saved to: $caption_file (elapsed time: $elapsed seconds)"
     }
     catch {
         Write-Error "Error processing image: $image_file"
+        
     }
 }

@@ -12,33 +12,39 @@
 # Usage: python vision-server.py [--host HOST] [--port PORT]
 #
 # Author: Steve Goodman (spgoodman)
-# Date: 2024-10-07
+# Date: 2024-10-13
 # License: MIT
-
 import base64
 from PIL import Image
-
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
-
 import torch
 import io
+import os
+from unittest.mock import patch
+from transformers.dynamic_module_utils import get_imports
+import torchvision.transforms.functional as F
+from torchvision import transforms
 from transformers import AutoProcessor, AutoModelForCausalLM
 import asyncio
 from typing import List
 import time
 import logging
+import warnings
+
 
 logging.basicConfig(level=logging.INFO)
+warnings.filterwarnings("ignore")
+
 logger = logging.getLogger("uvicorn")
 
 unload_after_seconds = 300
 
 # Recommended models:
 # MiaoshouAI/Florence-2-large-PromptGen-v2.0
-# MiaoshouAI/Florence-2-base-PromptGen-v2.0
-florence2_model = "MiaoshouAI/Florence-2-large-PromptGen-v2.0"
+# MiaoshouAI/Florence-2-base-PromptGen-v2.0 < smaller and about 20% faster
+florence2_model = "MiaoshouAI/Florence-2-base-PromptGen-v2.0"
 # List of prompts that can be used with the MiaoshouAI/Florence-2-large-PromptGen-v2.0 and MiaoshouAI/Florence-2-base-PromptGen-v2.0 model. You can add additional prompts from the standard Florence-2 models
 florence2_prompts = [
     "<GENERATE_TAGS>",
@@ -57,31 +63,49 @@ class ImageRequest(BaseModel):
 class ImageResponse(BaseModel):
     result: str
 
-model = None
+hf_model = None
+device = None
+torch_dtype = None
 processor = None
 last_use_time = 0
 model_lock = asyncio.Lock()
 request_queue = asyncio.Queue()
+torch_compile = False
 
 # Load the model if it has not been loaded yet
 def load_model():
-    global model, processor, florence2_model
-    if model is None:
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        model = AutoModelForCausalLM.from_pretrained(florence2_model, torch_dtype=torch_dtype, trust_remote_code=True).to(device)
+    global hf_model, processor, florence2_model, device, torch_dtype, last_use_time, torch_compile
+    last_use_time = time.time()
+    attention = None
+    if hf_model is None:
+        logger.info("Loading model")
+        if torch.cuda.is_available():
+            attention = 'sdpa'
+            logger.info("CUDA is available")
+            torch_dtype = torch.float16
+            device = "cuda:0"
+                
+        else:
+            logger.info("CUDA is not available, using CPU")
+            attention = 'full'
+            device = "cpu"
+            torch_dtype = torch.float32
+        hf_model = AutoModelForCausalLM.from_pretrained(florence2_model, attn_implementation=attention, device_map=device,torch_dtype=torch_dtype, trust_remote_code=True).to(device)
         processor = AutoProcessor.from_pretrained(florence2_model, trust_remote_code=True)
-        logger.info("Model loaded successfully")
+        if torch_compile:
+            logger.info("Compiling model with torch.compile")
+            hf_model.generation_config.cache_implementation = "static"
+            hf_model.forward = torch.compile(hf_model.forward, mode="reduce-overhead", fullgraph=True)
 
 # Unload the model if it has not been used for a period of time (unload_after_seconds)
 async def unload_model_if_inactive():
-    global model, processor, last_use_time, unload_after_seconds
+    global hf_model, processor, last_use_time, unload_after_seconds
     while True:
         await asyncio.sleep(10)
-        if model is not None and time.time() - last_use_time > unload_after_seconds:
+        if hf_model is not None and time.time() - last_use_time > unload_after_seconds:
             async with model_lock:
                 if time.time() - last_use_time > unload_after_seconds:
-                    model = None
+                    hf_model = None
                     processor = None
                     torch.cuda.empty_cache()
                     logger.info("Model unloaded due to inactivity")
@@ -102,28 +126,26 @@ async def process_queue():
 
 # Process a single request passed from the process_queue function
 async def process_single_request(request: ImageRequest):
-    global model, processor, last_use_time, florence2_prompts
-    if request.prompt not in florence2_prompts:
+    global hf_model, processor, last_use_time, florence2_prompts, device, torch_dtype
+    prompt = request.prompt.upper()
+    if prompt not in florence2_prompts:
         raise HTTPException(status_code=400, detail="Invalid prompt")
-
     try:
+        image_received_time = time.time()
         image_data = base64.b64decode(request.image)
         image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        logger.info(f"Image decoded successfully. Size: {image.size}")
+        #image = F.resize(image, (256, 256))
+        processing_time = time.time() - image_received_time
+        logger.info(f"Image decoded successfully. Size: {image.size} Processing Time: {processing_time:.2f} seconds")
     except Exception as e:
         logger.error(f"Error decoding image: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Invalid image data: {str(e)}")
-
     async with model_lock:
-        load_model()
-        last_use_time = time.time()
-        device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         try:
-            inputs = processor(text=request.prompt, images=image, return_tensors="pt").to(device, torch_dtype)
-            logger.info("Inputs processed successfully")
-
-            generated_ids = model.generate(
+            logger.info("Processing image with model")
+            load_model()
+            inputs = processor(text=prompt, images=image, return_tensors="pt").to(device, torch_dtype)
+            generated_ids = hf_model.generate(
                 input_ids=inputs["input_ids"],
                 pixel_values=inputs["pixel_values"],
                 max_new_tokens=1024,
@@ -132,7 +154,8 @@ async def process_single_request(request: ImageRequest):
             )
             generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
             parsed_answer = processor.post_process_generation(generated_text, task=request.prompt, image_size=(image.width, image.height))
-            logger.info("Image processed successfully")
+            processing_time = time.time() - last_use_time
+            logger.info(f"Image processed successfully in {processing_time:.2f} seconds")
         except Exception as e:
             logger.error(f"Error processing image with model: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
@@ -169,4 +192,5 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=54880, help="Port to listen on for HTTP requests")
     args = parser.parse_args()
     import uvicorn
+    load_model()
     uvicorn.run(app, host=args.host, port=args.port)

@@ -7,7 +7,7 @@
 # Example: vision-caption-folder-images.sh DETAILED_CAPTION txt /path/to/folder
 #
 # Author: Steve Goodman (spgoodman)
-# Date: 2024-10-07
+# Date: 2024-10-13
 # License: MIT
 
 if [[ ! $3 ]]; then
@@ -30,5 +30,9 @@ fi
 find "$folder_path" -type f -iregex '.*\.\(jpg\|jpeg\|png\|gif\|bmp\|tiff\|webp\)' | while read image_file; do
     echo "Processing image: $image_file"
     caption_file="${image_file%.*}.$caption_extension"
+    if [[ -f "$caption_file" ]]; then
+        echo "Caption file already exists, skipping: $caption_file"
+        continue
+    fi
     $VISION_CLIENT "$prompt" "$image_file" > "$caption_file" && echo "Caption saved to: $caption_file" || echo "Error processing image: $image_file"
 done
