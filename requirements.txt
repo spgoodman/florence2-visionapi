@@ -4,9 +4,12 @@ pydantic
 requests
 timm
 tokenizers
-torch
-torchvision
 tqdm
 transformers
 uvicorn
 einops
+#accelerate
+#lm_eval
+torch
+torchvision
+accelerate
