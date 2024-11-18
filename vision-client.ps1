@@ -12,7 +12,7 @@
 # Change the $baseUrl to match the --host and --port set when launching vision-server.sh / vision-server.py
 # Check environment variable for VISION_HOST and if not set, use default
 if ($env:VISION_HOST) {
-    $baseUrl = "http://$env:VISION_HOST"
+    $baseUrl = $env:VISION_HOST
 } else {
     $baseUrl = "http://127.0.0.1:54880"
 }
